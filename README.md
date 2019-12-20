@@ -52,7 +52,7 @@ define('util/bar', function () {
     // ... etc...
 });
 
-define('util/odd', ['../foo'], function () {
+define('util/odd', ['../foo'], function (Foo) {
     // ... etc...
 });
 

@@ -57,9 +57,8 @@ function resolve(relativeTo, path) {
     return stack;
 }
 
-const dependencies = {},
-      initializers = {},
-      modules = {};
+const dependencies = {},  // module path -> array of module paths
+      initializers = {};  // module path -> function
 
 // defineModule(name?: String, dependencies?: Array, init: function)
 function defineModule(...args) {
@@ -114,6 +113,9 @@ function defineModule(...args) {
     initializers[name] = init;
 }
 
+const seen = {},     // module path -> boolean (for cycle detection)
+      modules = {};  // module path -> object (loaded module)
+
 function load(moduleName) {
     if (moduleName === undefined) {
         // load all modules and then resolve to the map of all modules
@@ -132,6 +134,17 @@ function load(moduleName) {
                     'Here are the known module names: ' +
                     JSON.stringify(Object.keys(dependencies)));
     }
+
+    if (seen[moduleName]) {
+        // Keeping track of the stack of "callers" would be nice here, to help
+        // the programmer find exactly where the cycle is, but I can't be
+        // bothered.
+        throw Error('Dependency cycle detected.  The module ' +
+                    JSON.stringify(moduleName) + ' is depended upon by one ' +
+                    'of its (direct or indirect) dependencies.');
+    }
+
+    seen[moduleName] = true;  // mark this module "seen" for cycle detection
 
     // Load all of the dependencies, run the initializer for the module using
     // the loaded dependencies, store the resulting loaded module into
