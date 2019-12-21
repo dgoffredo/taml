@@ -16,8 +16,8 @@ Yes, I've reinvented the wheel.  But [look][2], it's less than 200 lines.
 What
 ----
 [taml.js](taml.js) is a Javascript script that defines a global function,
-`define`, that can be used to define modules according to the [AMD][1]
-specification.  `define` additionally exposes two properties:
+`define`, that can be used to define modules in a manner similar to the
+[AMD][1] specification.  `define` additionally exposes two properties:
 
 - `define.load(moduleName?)` returns a [Promise][3] that loads the optionally
   specified module and its dependencies and then returns the loaded module
@@ -26,6 +26,17 @@ specification.  `define` additionally exposes two properties:
   modules.
 - `define.modules` is an object of all loaded modules, keyed by fully qualified
   name.
+
+[taml.js](taml.js) differs from [AMD][1] in a couple of notable ways:
+
+1. The special module names `exports`, `require`, and `module` are not
+   supported.
+2. Modules are not loaded as soon as possible (once all their dependencies have
+   been defined).  Instead, no module is loaded until `define.load` is called.
+
+These differences in design are to maintain the simplicity of the
+implementation.  Compatibility with other libraries is not a goal (for that,
+just use [require.js][4]).
 
 How
 ---
@@ -68,3 +79,4 @@ define.load().then(modules => {
 [1]: https://github.com/amdjs/amdjs-api/blob/master/AMD.md
 [2]: taml.js
 [3]: https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Promise
+[4]: https://requirejs.org
