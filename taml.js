@@ -1,11 +1,8 @@
 define = (function () {
 
 function parseModulePath(pathString) {
-    // Path "parts" are separated by forward slashes, but backslash-escaped
-    // forward slashes are also supported, hence the negated lookbehind regex.
-    // Empty "parts" are then removed -- they correspond to repeated forward
-    // slashes.
-    return pathString.split(/(?<!\\)\//).filter(part => part !== '');
+    // This used to handle backslash-escaped characters, but simpler is better.
+    return pathString.split('/');
 }
 
 function isRelativePart(pathPart) {
@@ -113,54 +110,58 @@ function defineModule(...args) {
     initializers[name] = init;
 }
 
-const seen = {},     // module path -> boolean (for cycle detection)
-      modules = {};  // module path -> object (loaded module)
+const modules = {},   // module path -> object (loaded module)
+      promises = {};  // module path -> Promise (loading/loaded module)
 
-function load(moduleName) {
+function load(moduleName, ancestors) {
+    function recur(name) {
+        return load(name, ancestors);
+    }
+
     if (moduleName === undefined) {
         // load all modules and then resolve to the map of all modules
-        return Promise.all(Object.keys(dependencies).map(load))
+        return Promise.all(Object.keys(dependencies).map(recur))
                       .then(() => modules);
     }
 
-    if (moduleName in modules) {
-        // if the module has already been loaded, return an immediate promise
-        return Promise.resolve(modules[moduleName]);
+    if (moduleName in promises) {
+        // If the module is already being loaded, or already has been loaded,
+        // then return the relevant Promise.
+        return promises[moduleName];
     }
 
     const deps = dependencies[moduleName];
     if (deps === undefined) {
         throw Error(`Unknown module name ${JSON.stringify(moduleName)}.  ` +
-                    'Here are the known module names: ' +
+                    'Here is the dependency chain: ' +
+                    JSON.stringify(ancestors) +
+                    '.  Here are the known module names: ' +
                     JSON.stringify(Object.keys(dependencies)));
     }
 
-    if (seen[moduleName]) {
-        // Keeping track of the stack of "callers" would be nice here, to help
-        // the programmer find exactly where the cycle is, but I can't be
-        // bothered.
+    ancestors = ancestors.concat([moduleName])
+
+    if (ancestors.indexOf(moduleName) !== ancestors.length - 1) {
         throw Error('Dependency cycle detected.  The module ' +
                     JSON.stringify(moduleName) + ' is depended upon by one ' +
-                    'of its (direct or indirect) dependencies.');
+                    'of its (direct or indirect) dependencies.  Here is the ' +
+                    'dependency chain: ' + JSON.stringify(ancestors));
     }
 
-    seen[moduleName] = true;  // mark this module "seen" for cycle detection
-
-    // Load all of the dependencies, run the initializer for the module using
-    // the loaded dependencies, store the resulting loaded module into
-    // `modules`, and return the loaded module.
-    return Promise.all(deps.map(load))
-                  .then(loadedDeps => {
+    const promise = Promise.all(deps.map(recur)).then(loadedDeps => {
         const loadedModule = initializers[moduleName](...loadedDeps);
         modules[moduleName] = loadedModule;
         return loadedModule;
     });
+
+    promises[moduleName] = promise;
+    return promise;
 }
 
 return Object.assign(defineModule, {
-    load,
+    load: moduleName => load(moduleName, []),
     modules,
-    amd: {}  // per the spec
+    amd: {}  // per the spec (though we're techincally non-conforming)
 });
 
 }());
